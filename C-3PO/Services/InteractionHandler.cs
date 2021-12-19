@@ -32,40 +32,10 @@ internal class InteractionHandler : DiscordClientService
     {
         Client.InteractionCreated += HandleInteraction;
 
-        _interactionService.SlashCommandExecuted += SlashCommandExecuted;
-
         await _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _provider);
         await Client.WaitForReadyAsync(stoppingToken);
 
         await _interactionService.RegisterCommandsToGuildAsync(_configuration.Guild);
-    }
-
-    private Task SlashCommandExecuted(SlashCommandInfo commandInfo, IInteractionContext context, IResult result)
-    {
-        if (!result.IsSuccess)
-        {
-            switch (result.Error)
-            {
-                case InteractionCommandError.UnmetPrecondition:
-                    // implement
-                    break;
-                case InteractionCommandError.UnknownCommand:
-                    // implement
-                    break;
-                case InteractionCommandError.BadArgs:
-                    // implement
-                    break;
-                case InteractionCommandError.Exception:
-                    // implement
-                    break;
-                case InteractionCommandError.Unsuccessful:
-                    // implement
-                    break;
-                default:
-                    break;
-            }
-        }
-        return Task.CompletedTask;
     }
 
     private async Task HandleInteraction(SocketInteraction socketInteraction)

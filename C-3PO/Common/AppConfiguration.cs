@@ -6,12 +6,16 @@ namespace C_3PO.Common
     {
         private string _token = null!;
         private ulong _guild = 0!;
+        private ulong _rulesChannel = 0!;
+        private ulong _rulesMessage = 0!;
         private Categories _categories = null!;
 
         public AppConfiguration(IConfiguration configuration)
         {
             Token = configuration.GetValue<string>("Token");
             Guild = configuration.GetValue<ulong>("Guild");
+            RulesChannel = configuration.GetValue<ulong>("RulesChannel");
+            RulesMessage = configuration.GetValue<ulong>("RulesMessage");
 
             var categories = configuration.GetSection("Categories");
             Categories = new Categories();
@@ -37,6 +41,28 @@ namespace C_3PO.Common
                 if (value == 0)
                     throw new NullReferenceException("No guild was provided, please provide it through appsettings.json.");
                 _guild = value;
+            }
+        }
+
+        public ulong RulesChannel
+        {
+            get => _rulesChannel;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No rules channel was provided, please provide it through appsettings.json.");
+                _rulesChannel = value;
+            }
+        }
+
+        public ulong RulesMessage
+        {
+            get => _rulesMessage;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No rules message was provided, please provide it through appsettings.json.");
+                _rulesMessage = value;
             }
         }
 

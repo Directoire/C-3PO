@@ -51,7 +51,7 @@ try
             .AddHostedService<InteractionHandler>()
             .AddHostedService<OnboardingHandler>()
             .AddHttpClient()
-            .AddDbContextFactory<AppDbContext>(options =>
+            .AddDbContext<AppDbContext>(options =>
                 options
                     .UseMySql(
                         context.Configuration.GetValue<string>("Database"),
