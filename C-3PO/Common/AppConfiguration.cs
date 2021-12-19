@@ -15,10 +15,11 @@ namespace C_3PO.Common
 
             var categories = configuration.GetSection("Categories");
             Categories = new Categories();
-            Categories.OuterRim = categories.GetValue<ulong>("OuterRim");
+            Categories.Onboarding = categories.GetValue<ulong>("Onboarding");
         }
 
-        public string Token {
+        public string Token
+        {
             get => _token;
             set
             {
@@ -28,7 +29,8 @@ namespace C_3PO.Common
             }
         }
 
-        public ulong Guild {
+        public ulong Guild
+        {
             get => _guild;
             set
             {
@@ -52,16 +54,16 @@ namespace C_3PO.Common
 
     public class Categories
     {
-        private ulong _outerRim;
+        private ulong _onboarding;
 
-        public ulong OuterRim
+        public ulong Onboarding
         {
-            get => _outerRim;
+            get => _onboarding;
             set
             {
                 if (value == 0)
                     throw new NullReferenceException("The outer rim category was not provided, please provide it through appsettings.json.");
-                _outerRim = value;
+                _onboarding = value;
             }
         }
     }

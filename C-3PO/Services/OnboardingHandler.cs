@@ -1,10 +1,10 @@
-﻿using C_3PO.Common;
+﻿using C_3PO.Assets;
+using C_3PO.Common;
 using Discord;
 using Discord.Addons.Hosting;
 using Discord.Interactions;
 using Discord.Webhook;
 using Discord.WebSocket;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace C_3PO.Services
@@ -14,65 +14,80 @@ namespace C_3PO.Services
         private readonly IServiceProvider _provider;
         private readonly InteractionService _interactionService;
         private readonly AppConfiguration _configuration;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public OnboardingHandler(DiscordSocketClient client, ILogger<DiscordClientService> logger, IServiceProvider provider, InteractionService interactionService, AppConfiguration configuration)
+        public OnboardingHandler(
+            DiscordSocketClient client,
+            ILogger<DiscordClientService> logger,
+            IServiceProvider provider,
+            InteractionService interactionService,
+            AppConfiguration configuration,
+            IHttpClientFactory httpClientFactory)
             : base(client, logger)
         {
             _provider = provider;
             _interactionService = interactionService;
             _configuration = configuration;
+            _httpClientFactory = httpClientFactory;
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             Client.UserJoined += HandleUserJoined;
+            Client.Ready += async () =>
+            {
+                await HandleUserJoined(Client.Guilds.First()!.GetUser(506954191273721856));
+            };
             return Task.CompletedTask;
         }
 
         private async Task HandleUserJoined(SocketGuildUser user)
         {
-            if (user.Guild.Id != _configuration.Guild)
-                return;
-
             await Task.Run(async () =>
             {
+                if (user.Guild.Id != _configuration.Guild)
+                    return;
+
+                // Permission overwrites to make the channel only visible for the involved user.
                 var permissionOverwrites = new List<Overwrite>()
                 {
                     new Overwrite(user.Guild.EveryoneRole.Id, PermissionTarget.Role, new OverwritePermissions(viewChannel: PermValue.Deny)),
-                    new Overwrite(user.Id, PermissionTarget.User, new OverwritePermissions(viewChannel: PermValue.Allow))
+                    new Overwrite(user.Id, PermissionTarget.User, new OverwritePermissions(viewChannel: PermValue.Allow, sendMessages: PermValue.Deny))
                 };
 
+                // Create the onboarding channel under the onboarding category and assign the permission overwrites.
                 var textChannel = await user.Guild.CreateTextChannelAsync(user.Username + "-onboarding", t =>
                 {
-                    t.CategoryId = _configuration.Categories.OuterRim;
+                    t.CategoryId = _configuration.Categories.Onboarding;
                     t.PermissionOverwrites = permissionOverwrites;
                 });
 
-                await textChannel.TriggerTypingAsync();
-                await Task.Delay(1000);
-                await textChannel.SendMessageAsync("Hello there, stranger! I can't seem to identify you, you must be new. We've put you in Docking Bay 327 to get some things sorted. I've dispatched some troopers.");
-                await textChannel.SendMessageAsync("https://media.giphy.com/media/xTiIzsz8RsfugNsg6s/giphy.gif");
+                // Get the avatars of Darth Vader, Trooper and the user as streams.
+                using var httpClient = _httpClientFactory.CreateClient();
+                var darthVaderAvatar = new MemoryStream(File.ReadAllBytes(AppAssets.Avatars.Vader));
+                var trooperAvatar = new MemoryStream(File.ReadAllBytes(AppAssets.Avatars.Trooper));
+                var userAvatar = await httpClient.GetStreamAsync(user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl());
 
-                using var httpClient = new HttpClient();
-                var avatar = await httpClient.GetStreamAsync(user.GetAvatarUrl());
-                var webhookClient = new DiscordWebhookClient(await textChannel.CreateWebhookAsync(user.Username, avatar));
+                // Create the webhooks for Darth Vader, Trooper and the user.
+                var darthVaderWebhook = new DiscordWebhookClient(await textChannel.CreateWebhookAsync("Darth Vader", darthVaderAvatar));
+                var trooperWebhook = new DiscordWebhookClient(await textChannel.CreateWebhookAsync("Trooper", trooperAvatar));
+                var userWebhook = new DiscordWebhookClient(await textChannel.CreateWebhookAsync(user.Username, userAvatar));
+
+                await userWebhook.SendMessageAsync(AppAssets.GIFs.ShipInbound);
 
                 await Task.Delay(1000);
-                var components = new ComponentBuilder()
+                await trooperWebhook.SendMessageAsync("Hello there, unidentified ship. You don’t appear to be in our list of known ships. We are putting you in Docking Bay 327.");
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                await trooperWebhook.SendMessageAsync("I am dispatching a squad of troopers. Prepare your ship to be boarded for inspection.");
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                await trooperWebhook.SendMessageAsync("https://media.giphy.com/media/3owzVZFPH8ekSCIo5G/giphy.gif");
+
+                var actionComponents = new ComponentBuilder()
                     .WithButton("Cooperate", "cooperate", ButtonStyle.Success)
-                    .WithButton("Try to fight your way in", "fight", ButtonStyle.Danger)
+                    .WithButton("Attack", "attack", ButtonStyle.Danger)
                     .Build();
-
-                await textChannel.SendMessageAsync("The troopers have arrived at your ship. What do you do?", components: components);
-
                 await Task.Delay(1000);
-                await webhookClient.SendMessageAsync("*Shows identification*");
-                await Task.Delay(1000);
-                await webhookClient.SendMessageAsync("I would like to board the Death Star and head to the cantina.");
-
-                await textChannel.TriggerTypingAsync();
-                await Task.Delay(1000);
-                await textChannel.SendMessageAsync("In order to board the Death Star and gain access to all our facilities, you'll have to accept our rules.");
+                await textChannel.SendMessageAsync("The troopers have arrived at your ship. What do you do?", components: actionComponents);
             });
         }
     }

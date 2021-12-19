@@ -1,12 +1,11 @@
-﻿using System.Reflection;
-using C_3PO.Common;
+﻿using C_3PO.Common;
 using Discord;
 using Discord.Addons.Hosting;
 using Discord.Addons.Hosting.Util;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace C_3PO.Services;
 

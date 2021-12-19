@@ -1,14 +1,16 @@
-﻿using Discord;
+﻿using C_3PO.Common;
+using C_3PO.Data.Context;
+using C_3PO.Services;
+using Discord;
 using Discord.Addons.Hosting;
+using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Events;
-using C_3PO.Services;
-using Discord.Interactions;
-using Newtonsoft.Json;
-using C_3PO.Common;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -48,6 +50,12 @@ try
             services
             .AddHostedService<InteractionHandler>()
             .AddHostedService<OnboardingHandler>()
+            .AddHttpClient()
+            .AddDbContextFactory<AppDbContext>(options =>
+                options
+                    .UseMySql(
+                        context.Configuration.GetValue<string>("Database"),
+                        new MySqlServerVersion(new Version(8, 0, 26))))
             .AddSingleton(appConfiguration);
         }).Build();
 
