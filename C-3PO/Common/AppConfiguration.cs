@@ -9,6 +9,7 @@ namespace C_3PO.Common
         private ulong _rulesChannel = 0!;
         private ulong _rulesMessage = 0!;
         private Categories _categories = null!;
+        private ulong _onboardingRole = 0!;
 
         public AppConfiguration(IConfiguration configuration)
         {
@@ -16,6 +17,7 @@ namespace C_3PO.Common
             Guild = configuration.GetValue<ulong>("Guild");
             RulesChannel = configuration.GetValue<ulong>("RulesChannel");
             RulesMessage = configuration.GetValue<ulong>("RulesMessage");
+            OnboardingRole = configuration.GetValue<ulong>("OnboardingRole");
 
             var categories = configuration.GetSection("Categories");
             Categories = new Categories();
@@ -63,6 +65,17 @@ namespace C_3PO.Common
                 if (value == 0)
                     throw new NullReferenceException("No rules message was provided, please provide it through appsettings.json.");
                 _rulesMessage = value;
+            }
+        }
+
+        public ulong OnboardingRole
+        {
+            get => _onboardingRole;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No onboarding role was provided, please provide it through appsettings.json.");
+                _onboardingRole = value;
             }
         }
 

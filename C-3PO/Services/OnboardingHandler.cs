@@ -7,8 +7,8 @@ using Discord.Addons.Hosting;
 using Discord.Interactions;
 using Discord.Webhook;
 using Discord.WebSocket;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace C_3PO.Services
 {
@@ -43,19 +43,27 @@ namespace C_3PO.Services
             Client.ButtonExecuted += HandleButtonExecuted;
             Client.Ready += async () =>
             {
+                if (_dbContext.Onboardings.Any(x => x.Id == 506954191273721856))
+                {
+                    _dbContext.Remove(_dbContext.Onboardings
+                        .First(x => x.Id == 506954191273721856));
+
+                    await _dbContext.SaveChangesAsync();
+                }
+
                 await HandleUserJoined(Client.Guilds.First()!.GetUser(506954191273721856));
             };
             return Task.CompletedTask;
         }
 
-        private async Task HandleButtonExecuted(SocketMessageComponent component)
+        private Task HandleButtonExecuted(SocketMessageComponent component)
         {
             if (((SocketGuildChannel)component.Channel).Guild.Id != _configuration.Guild)
-                return;
+                return Task.CompletedTask;
 
             var guild = Client.GetGuild(_configuration.Guild);
 
-            await Task.Run(async () =>
+            Task.Run(async () =>
             {
                 if (!_dbContext.Onboardings
                     .Where(x => x.Id == component.User.Id)
@@ -65,13 +73,13 @@ namespace C_3PO.Services
                 }
 
                 var user = guild.GetUser(component.User.Id);
+                var userWebhook = await GetOrCreateWebhookAsync(user.Username, user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl(), (ITextChannel)component.Channel);
 
-                switch(component.Data.CustomId)
+                switch (component.Data.CustomId)
                 {
                     case "cooperate":
                         await component.DeferAsync();
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
-                        var userWebhook = await GetOrCreateWebhookAsync(user.Username, user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl(), (ITextChannel)component.Channel);
                         await userWebhook.SendMessageAsync("*Shows identification*");
                         await userWebhook.SendMessageAsync("https://media.giphy.com/media/401C6bNoACPlwbaLCN/giphy.gif");
                         await Task.Delay(TimeSpan.FromSeconds(1));
@@ -84,10 +92,68 @@ namespace C_3PO.Services
                         await _dbContext.SaveChangesAsync();
                         await Rules();
                         break;
+                    case "accept":
+                        await component.DeferAsync();
+                        await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
+
+                        await userWebhook.SendMessageAsync("Yes, I will follow the rules.");
+
+                        var categoriesComponent = new ComponentBuilder();
+                        categoriesComponent.WithButton("Continue", "continue", ButtonStyle.Success);
+                        foreach (var category in _dbContext.Categories)
+                        {
+                            var name = guild.GetCategoryChannel(category.Id).Name;
+                            categoriesComponent.WithButton($"Join {name}", category.Id.ToString(), ButtonStyle.Secondary);
+                        }
+
+                        var categoriesMessage = await component.Channel.SendMessageAsync(
+                            "Great! You can join various categories giving you access to related channels. For instance, you can join programming to request help or showcase your projects.",
+                            components: categoriesComponent.Build());
+
+                        var onboarding = _dbContext.Onboardings
+                            .First(x => x.Id == user.Id);
+
+                        onboarding.CategoriesMessage = categoriesMessage.Id;
+                        onboarding.State = OnboardingState.Categories;
+
+                        await _dbContext.SaveChangesAsync();
+                        break;
+                    case var customId when ulong.TryParse(customId, out var categoryId):
+                        await component.DeferAsync();
+
+                        if (!_dbContext.Categories
+                                .Where(x => x.Id == categoryId)
+                                .Any())
+                            return;
+
+                        var role = guild.GetRole(_dbContext.Categories.First(x => x.Id == categoryId).Role);
+                        await user.AddRoleAsync(role);
+
+                        var leftCategoriesComponent = new ComponentBuilder();
+                        leftCategoriesComponent.WithButton("Continue", "continue", ButtonStyle.Success);
+                        foreach (var category in _dbContext.Categories)
+                        {
+                            if (user.Roles.Any(x => x.Id == category.Role) || category.Id == categoryId)
+                                continue;
+
+                            var name = guild.GetCategoryChannel(category.Id).Name;
+                            leftCategoriesComponent.WithButton($"Join {name}", category.Id.ToString(), ButtonStyle.Secondary);
+                        }
+
+                        await component.Message.ModifyAsync(x => x.Components = leftCategoriesComponent.Build());
+                        break;
+                    case "continue":
+                        await component.DeferAsync();
+                        await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
+
+                        await component.Channel.SendMessageAsync("Finally, there are some notifications you can subscribe to. These are server-wide and per category.");
+
+                        break;
                     default:
-                        throw new NotImplementedException();
+                        break;
                 }
             });
+            return Task.CompletedTask;
 
             async Task Rules()
             {
@@ -99,7 +165,12 @@ namespace C_3PO.Services
                 await component.Channel.SendMessageAsync("First, let's go through the code of conduct.");
 
                 var rules = await guild!.GetTextChannel(_configuration.RulesChannel).GetMessageAsync(_configuration.RulesMessage);
-                await component.Channel.SendMessageAsync(rules.Content);
+
+                var rulesEmbed = new EmbedBuilder()
+                    .WithDescription(rules.Content)
+                    .Build();
+
+                await component.Channel.SendMessageAsync(embed: rulesEmbed);
                 var rulesComponents = new ComponentBuilder()
                     .WithButton("Yes", "accept", ButtonStyle.Success)
                     .WithButton("No", "reject", ButtonStyle.Danger)
@@ -120,6 +191,10 @@ namespace C_3PO.Services
             {
                 if (user.Guild.Id != _configuration.Guild)
                     return;
+
+                // Assign the user the onboarding role, preventing them from speaking in categories until their onboarding procedure is finished.
+                var onboarding = user.Guild.GetRole(_configuration.OnboardingRole);
+                await user.AddRoleAsync(onboarding);
 
                 // Permission overwrites to make the channel only visible for the involved user.
                 var permissionOverwrites = new List<Overwrite>()

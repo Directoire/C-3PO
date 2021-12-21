@@ -11,8 +11,10 @@
   <ItemGroup>
     <PackageReference Include="Discord.Addons.Hosting" Version="5.0.0-labs-alpha-02" />
     <PackageReference Include="Discord.Net.Labs" Version="3.5.0" />
+    <PackageReference Include="Discord.Net.Labs.Commands" Version="3.5.0" />
     <PackageReference Include="Discord.Net.Labs.Core" Version="3.5.0" />
     <PackageReference Include="Discord.Net.Labs.Interactions" Version="3.5.0" />
+    <PackageReference Include="Discord.Net.Labs.Rest" Version="3.5.0" />
     <PackageReference Include="Discord.Net.Labs.Webhook" Version="3.5.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="6.0.1">
