@@ -3,6 +3,7 @@ using System;
 using C_3PO.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace C_3PO.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20211222171737_AddedNotificationRoles")]
+    partial class AddedNotificationRoles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -45,7 +47,7 @@ namespace C_3PO.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint unsigned");
 
-                    b.Property<ulong?>("CategoryId")
+                    b.Property<ulong>("CategoryId")
                         .HasColumnType("bigint unsigned");
 
                     b.HasKey("Id");
@@ -92,7 +94,9 @@ namespace C_3PO.Data.Migrations
                 {
                     b.HasOne("C_3PO.Data.Models.Category", "Category")
                         .WithOne("NotificationRole")
-                        .HasForeignKey("C_3PO.Data.Models.NotificationRole", "CategoryId");
+                        .HasForeignKey("C_3PO.Data.Models.NotificationRole", "CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Category");
                 });

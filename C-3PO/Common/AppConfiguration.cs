@@ -8,8 +8,12 @@ namespace C_3PO.Common
         private ulong _guild = 0!;
         private ulong _rulesChannel = 0!;
         private ulong _rulesMessage = 0!;
-        private Categories _categories = null!;
+        private ulong _onboardingCategory = 0!;
         private ulong _onboardingRole = 0!;
+        private ulong _welcomeChannel = 0!;
+        private ulong _ejectedRole = 0!;
+        private ulong _ejectedChannel = 0!;
+        private ulong _civilianRole = 0!;
 
         public AppConfiguration(IConfiguration configuration)
         {
@@ -18,10 +22,11 @@ namespace C_3PO.Common
             RulesChannel = configuration.GetValue<ulong>("RulesChannel");
             RulesMessage = configuration.GetValue<ulong>("RulesMessage");
             OnboardingRole = configuration.GetValue<ulong>("OnboardingRole");
-
-            var categories = configuration.GetSection("Categories");
-            Categories = new Categories();
-            Categories.Onboarding = categories.GetValue<ulong>("Onboarding");
+            OnboardingCategory = configuration.GetValue<ulong>("OnboardingCategory");
+            WelcomeChannel = configuration.GetValue<ulong>("WelcomeChannel");
+            EjectedRole = configuration.GetValue<ulong>("EjectedRole");
+            CivilianRole = configuration.GetValue<ulong>("CivilianRole");
+            EjectedChannel = configuration.GetValue<ulong>("EjectedChannel");
         }
 
         public string Token
@@ -79,30 +84,58 @@ namespace C_3PO.Common
             }
         }
 
-        public Categories Categories
+        public ulong OnboardingCategory
         {
-            get => _categories;
-            set
-            {
-                if (value == null)
-                    throw new NullReferenceException("No categories were provided, please provide them through appsettings.json.");
-                _categories = value;
-            }
-        }
-    }
-
-    public class Categories
-    {
-        private ulong _onboarding;
-
-        public ulong Onboarding
-        {
-            get => _onboarding;
+            get => _onboardingCategory;
             set
             {
                 if (value == 0)
-                    throw new NullReferenceException("The outer rim category was not provided, please provide it through appsettings.json.");
-                _onboarding = value;
+                    throw new NullReferenceException("No onboarding category was provided, please provide it through appsettings.json.");
+                _onboardingCategory = value;
+            }
+        }
+
+        public ulong WelcomeChannel
+        {
+            get => _welcomeChannel;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No welcome channel was provided, please provide it through appsettings.json.");
+                _welcomeChannel = value;
+            }
+        }
+
+        public ulong EjectedRole
+        {
+            get => _ejectedRole;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No ejected role was provided, please provide it through appsettings.json.");
+                _ejectedRole = value;
+            }
+        }
+
+        public ulong CivilianRole
+        {
+            get => _civilianRole;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No civilian role was provided, please provide it through appsettings.json.");
+                _civilianRole = value;
+            }
+        }
+
+        public ulong EjectedChannel
+        {
+            get => _ejectedChannel;
+            set
+            {
+                if (value == 0)
+                    throw new NullReferenceException("No ejected channel was provided, please provide it through appsettings.json.");
+                _ejectedChannel = value;
             }
         }
     }

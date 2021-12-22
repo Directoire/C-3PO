@@ -41,18 +41,24 @@ namespace C_3PO.Services
         {
             Client.UserJoined += HandleUserJoined;
             Client.ButtonExecuted += HandleButtonExecuted;
-            Client.Ready += async () =>
-            {
-                if (_dbContext.Onboardings.Any(x => x.Id == 506954191273721856))
-                {
-                    _dbContext.Remove(_dbContext.Onboardings
-                        .First(x => x.Id == 506954191273721856));
+            //Client.Ready += async () =>
+            //{
+            //    if (_dbContext.Onboardings.Any(x => x.Id == 506954191273721856))
+            //    {
+            //        _dbContext.Remove(_dbContext.Onboardings
+            //            .First(x => x.Id == 506954191273721856));
 
-                    await _dbContext.SaveChangesAsync();
-                }
+            //        await _dbContext.SaveChangesAsync();
+            //    }
 
-                await HandleUserJoined(Client.Guilds.First()!.GetUser(506954191273721856));
-            };
+            //    var category = Client.Guilds.First().GetCategoryChannel(_configuration.OnboardingCategory);
+            //    foreach (var channel in category.Channels.Where(x => x.Id != 922105571484782612))
+            //    {
+            //        await channel.DeleteAsync();
+            //    }
+
+            //    await HandleUserJoined(Client.Guilds.First()!.GetUser(506954191273721856));
+            //};
             return Task.CompletedTask;
         }
 
@@ -74,6 +80,12 @@ namespace C_3PO.Services
 
                 var user = guild.GetUser(component.User.Id);
                 var userWebhook = await GetOrCreateWebhookAsync(user.Username, user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl(), (ITextChannel)component.Channel);
+                var darthVaderWebhook = await GetOrCreateWebhookAsync("Darth Vader", AppAssets.Avatars.Vader, (ITextChannel)component.Channel);
+                var trooperWebhook = await GetOrCreateWebhookAsync("Trooper", AppAssets.Avatars.Trooper, (ITextChannel)component.Channel);
+                var onboarding = _dbContext.Onboardings.First(x => x.Id == user.Id);
+                var ejectedRole = guild.GetRole(_configuration.EjectedRole);
+                var ejectedChannel = guild.GetTextChannel(_configuration.EjectedChannel);
+                var civilianRole = guild.GetRole(_configuration.CivilianRole);
 
                 switch (component.Data.CustomId)
                 {
@@ -92,62 +104,219 @@ namespace C_3PO.Services
                         await _dbContext.SaveChangesAsync();
                         await Rules();
                         break;
-                    case "accept":
+                    case "attack":
+                        await component.DeferAsync();
+                        await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
+
+                        await userWebhook.SendMessageAsync("https://media.giphy.com/media/4WFgXmhbqWCowRTmdN/giphy.gif");
+                        await userWebhook.SendMessageAsync("*Starts fighting the troopers*");
+
+                        await Task.Delay(TimeSpan.FromSeconds(1));
+                        await trooperWebhook.SendMessageAsync("*Starts shooting at the intruder*");
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+
+                        // Outcome of the fight, determined by flipism. 0 indicates a success, 1 indicates a fail.
+                        int outcome = new Random().Next(0, 2);
+                        if (outcome == 0)
+                        {
+                            await darthVaderWebhook.SendMessageAsync("*Takes the blaster from you*");
+                            await darthVaderWebhook.SendMessageAsync("https://media.giphy.com/media/xTiIzsz8RsfugNsg6s/giphy.gif");
+                            
+                            await Task.Delay(TimeSpan.FromSeconds(1));
+                            await darthVaderWebhook.SendMessageAsync("Let’s stop the quarrel, shall we? Stranger, your shooting skills seem quite good. Care to show my troopers how they can do that in the cantina?");
+
+                            var offerComponent = new ComponentBuilder()
+                                .WithButton("Accept", "accept_offer", ButtonStyle.Success)
+                                .WithButton("Reject", "reject_offer", ButtonStyle.Danger)
+                                .Build();
+
+                            await component.Channel.SendMessageAsync("Do you accept or reject Darth Vader's offer?", components: offerComponent);
+
+                            onboarding.State = OnboardingState.Offer;
+                            await _dbContext.SaveChangesAsync();
+                            return;
+                        }
+
+                        await userWebhook.SendMessageAsync("https://media.giphy.com/media/l1KsqPhtSrgrJ9dO8/giphy.gif");
+                        await userWebhook.SendMessageAsync("*Loses the battle and gets ejected into space*");
+                        
+                        await user.AddRoleAsync(ejectedRole);
+                        _dbContext.Remove(onboarding);
+                        await _dbContext.SaveChangesAsync();
+
+                        await Task.Delay(TimeSpan.FromSeconds(3));
+                        await ((SocketGuildChannel)component.Channel).DeleteAsync();
+                        break;
+                    case "accept_offer":
+                        await component.DeferAsync();
+                        await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
+
+                        await userWebhook.SendMessageAsync("I accept the offer.");
+                        await Task.Delay(TimeSpan.FromSeconds(1));
+                        await Rules();
+                        break;
+                    case "accept_rules":
                         await component.DeferAsync();
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
 
                         await userWebhook.SendMessageAsync("Yes, I will follow the rules.");
 
-                        var categoriesComponent = new ComponentBuilder();
-                        categoriesComponent.WithButton("Continue", "continue", ButtonStyle.Success);
+                        var categoriesComponent = new ComponentBuilder()
+                            .WithButton("Continue", "continue", ButtonStyle.Success);
+
                         foreach (var category in _dbContext.Categories)
                         {
                             var name = guild.GetCategoryChannel(category.Id).Name;
                             categoriesComponent.WithButton($"Join {name}", category.Id.ToString(), ButtonStyle.Secondary);
                         }
 
+                        await component.Channel.TriggerTypingAsync();
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+
                         var categoriesMessage = await component.Channel.SendMessageAsync(
                             "Great! You can join various categories giving you access to related channels. For instance, you can join programming to request help or showcase your projects.",
                             components: categoriesComponent.Build());
-
-                        var onboarding = _dbContext.Onboardings
-                            .First(x => x.Id == user.Id);
 
                         onboarding.CategoriesMessage = categoriesMessage.Id;
                         onboarding.State = OnboardingState.Categories;
 
                         await _dbContext.SaveChangesAsync();
                         break;
-                    case var customId when ulong.TryParse(customId, out var categoryId):
+                    case "reject_rules":
+                    case "reject_offer":
                         await component.DeferAsync();
-
-                        if (!_dbContext.Categories
-                                .Where(x => x.Id == categoryId)
-                                .Any())
-                            return;
-
-                        var role = guild.GetRole(_dbContext.Categories.First(x => x.Id == categoryId).Role);
-                        await user.AddRoleAsync(role);
-
-                        var leftCategoriesComponent = new ComponentBuilder();
-                        leftCategoriesComponent.WithButton("Continue", "continue", ButtonStyle.Success);
-                        foreach (var category in _dbContext.Categories)
+                        await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
+                        if (component.Data.CustomId == "reject_offer")
                         {
-                            if (user.Roles.Any(x => x.Id == category.Role) || category.Id == categoryId)
-                                continue;
-
-                            var name = guild.GetCategoryChannel(category.Id).Name;
-                            leftCategoriesComponent.WithButton($"Join {name}", category.Id.ToString(), ButtonStyle.Secondary);
+                            await userWebhook.SendMessageAsync("I reject the offer!");
+                            await Task.Delay(TimeSpan.FromSeconds(1));
                         }
 
-                        await component.Message.ModifyAsync(x => x.Components = leftCategoriesComponent.Build());
+                        await darthVaderWebhook.SendMessageAsync("https://media.giphy.com/media/xTiIzKvMhb6ML9gEtG/giphy.gif");
+                        await userWebhook.SendMessageAsync("*Gets ejected into space*");
+
+                        await user.AddRoleAsync(ejectedRole);
+                        _dbContext.Remove(onboarding);
+                        await _dbContext.SaveChangesAsync();
+
+                        await Task.Delay(TimeSpan.FromSeconds(3));
+                        await ((SocketGuildChannel)component.Channel).DeleteAsync();
+                        break;
+                    case var customId when ulong.TryParse(customId, out var parsedId):
+                        await component.DeferAsync();
+
+                        if (_dbContext.Categories.All(x => x.Id != parsedId) &&
+                            _dbContext.NotificationRoles.All(x => x.Id != parsedId))
+                            return;
+
+                        if (_dbContext.Categories.Any(x => x.Id == parsedId))
+                        {
+                            var categoryRole = guild.GetRole(_dbContext.Categories.First(x => x.Id == parsedId).Role);
+                            await user.AddRoleAsync(categoryRole);
+                            await userWebhook.SendMessageAsync($"*Ticks {categoryRole.Name}*");
+
+                            var leftCategoriesComponent = new ComponentBuilder()
+                                .WithButton("Continue", "continue", ButtonStyle.Success);
+
+                            foreach (var category in _dbContext.Categories)
+                            {
+                                if (user.Roles.Any(x => x.Id == category.Role) || category.Id == parsedId)
+                                    continue;
+
+                                var name = guild.GetCategoryChannel(category.Id).Name;
+                                leftCategoriesComponent.WithButton($"Join {name}", category.Id.ToString(), ButtonStyle.Secondary);
+                            }
+
+                            await component.Message.ModifyAsync(x => x.Components = leftCategoriesComponent.Build());
+                            return;
+                        }
+
+                        var role = guild.GetRole(parsedId);
+                        await user.AddRoleAsync(role);
+                        await userWebhook.SendMessageAsync($"*Ticks {role.Name}*");
+
+                        var leftNotificationsComponent = new ComponentBuilder()
+                            .WithButton("Finish", "finish", ButtonStyle.Success);
+
+                        foreach (var notificationRole in _dbContext.NotificationRoles)
+                        {
+                            if (user.Roles.Any(x => x.Id == notificationRole.Id) || notificationRole.Id == parsedId)
+                                continue;
+
+                            if (notificationRole.Category != null && user.Roles.All(x => x.Id != notificationRole.Category?.Role))
+                            {
+                                continue;
+                            }
+
+                            leftNotificationsComponent.WithButton(
+                                $"Join {guild.GetRole(notificationRole.Id).Name}",
+                                notificationRole.Id.ToString(),
+                                ButtonStyle.Secondary);
+                        }
+
+                        await component.Message.ModifyAsync(x => x.Components = leftNotificationsComponent.Build());
                         break;
                     case "continue":
                         await component.DeferAsync();
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
 
-                        await component.Channel.SendMessageAsync("Finally, there are some notifications you can subscribe to. These are server-wide and per category.");
+                        var notificationsComponent = new ComponentBuilder()
+                            .WithButton("Finish", "finish", ButtonStyle.Success);
 
+                        foreach (var notificationRole in _dbContext.NotificationRoles)
+                        {
+                            if (notificationRole.Category != null && user.Roles.All(x => x.Id != notificationRole.Category?.Role))
+                            {
+                                continue;
+                            }
+
+                            notificationsComponent.WithButton(
+                                $"Join {guild.GetRole(notificationRole.Id).Name}",
+                                notificationRole.Id.ToString(),
+                                ButtonStyle.Secondary);
+                        }
+
+                        await component.Channel.TriggerTypingAsync();
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+
+                        await component.Channel.SendMessageAsync(
+                            "Finally, there are also some notifications you can subscribe to. These are server-wide and per category.",
+                            components: notificationsComponent.Build());
+
+                        onboarding.State = OnboardingState.Notifications;
+                        await _dbContext.SaveChangesAsync();
+                        break;
+                    case "finish":
+                        await component.DeferAsync();
+                        await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
+                        await component.Channel.TriggerTypingAsync();
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+                        await component.Channel.SendMessageAsync("You’ve finished the onboarding procedure. Welcome to Efehan’s Hangout! You will now be moved to the cantina...");
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+
+                        var onboardingRole = guild.GetRole(_configuration.OnboardingRole);
+                        await user.RemoveRoleAsync(onboardingRole);
+                        await user.AddRoleAsync(civilianRole);
+
+                        var welcomeChannel = guild.GetTextChannel(_configuration.WelcomeChannel);
+                        await welcomeChannel.SendMessageAsync($"A new ship has just landed! Welcome {user.Mention}!");
+
+                        string[] gifs = {
+                            "https://media.giphy.com/media/xT1R9HVTnpLVbAZ0OI/giphy.gif",
+                            "https://media.giphy.com/media/3owzWgWD37dvdlWxqg/giphy.gif",
+                            "https://media.giphy.com/media/3o7btXBwXqJ9iDj6U0/giphy.gif",
+                            "https://media.giphy.com/media/3o7btTuxoZaEvg5oUo/giphy.gif",
+                            "https://media.giphy.com/media/3og0ITP200ZuaAzz2g/giphy.gif",
+                            "https://media.giphy.com/media/ddnOwjgipKygIGcUUm/giphy.gif",
+                            "https://media.giphy.com/media/bFl5q5fN7AhC9Sz33U/giphy.gif"
+                        };
+
+                        await welcomeChannel.SendMessageAsync(gifs[new Random().Next(0, gifs.Length)]);
+
+                        _dbContext.Remove(onboarding);
+                        await _dbContext.SaveChangesAsync();
+
+                        await ((SocketGuildChannel)component.Channel).DeleteAsync();
                         break;
                     default:
                         break;
@@ -170,11 +339,16 @@ namespace C_3PO.Services
                     .WithDescription(rules.Content)
                     .Build();
 
+                await component.Channel.TriggerTypingAsync();
+                await Task.Delay(TimeSpan.FromSeconds(3));
                 await component.Channel.SendMessageAsync(embed: rulesEmbed);
                 var rulesComponents = new ComponentBuilder()
-                    .WithButton("Yes", "accept", ButtonStyle.Success)
-                    .WithButton("No", "reject", ButtonStyle.Danger)
+                    .WithButton("Yes", "accept_rules", ButtonStyle.Success)
+                    .WithButton("No", "reject_rules", ButtonStyle.Danger)
                     .Build();
+
+                await component.Channel.TriggerTypingAsync();
+                await Task.Delay(TimeSpan.FromSeconds(1));
                 await component.Channel.SendMessageAsync("Will you follow these rules?", components: rulesComponents);
 
                 _dbContext.Onboardings
@@ -206,7 +380,7 @@ namespace C_3PO.Services
                 // Create the onboarding channel under the onboarding category and assign the permission overwrites.
                 var textChannel = await user.Guild.CreateTextChannelAsync(user.Username + "-onboarding", t =>
                 {
-                    t.CategoryId = _configuration.Categories.Onboarding;
+                    t.CategoryId = _configuration.OnboardingCategory;
                     t.PermissionOverwrites = permissionOverwrites;
                 });
 

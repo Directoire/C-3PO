@@ -16,7 +16,7 @@ namespace C_3PO.Data.Models
         /// <summary>
         /// The ID of the category that the notification role is linked to, if any.
         /// </summary>
-        public ulong CategoryId { get; set; } = 0;
+        public ulong? CategoryId { get; set; } = 0;
 
         public virtual Category? Category { get; set; }
     }
