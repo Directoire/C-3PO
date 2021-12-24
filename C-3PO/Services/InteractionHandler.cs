@@ -1,4 +1,4 @@
-﻿using C_3PO.Common;
+﻿using C_3PO.Data.Context;
 using Discord;
 using Discord.Addons.Hosting;
 using Discord.Addons.Hosting.Util;
@@ -13,19 +13,19 @@ internal class InteractionHandler : DiscordClientService
 {
     private readonly IServiceProvider _provider;
     private readonly InteractionService _interactionService;
-    private readonly AppConfiguration _configuration;
+    private readonly AppDbContext _dbContext;
 
     public InteractionHandler(
         DiscordSocketClient client,
         ILogger<DiscordClientService> logger,
         IServiceProvider provider,
         InteractionService interactionService,
-        AppConfiguration configuration)
+        AppDbContext dbContext)
         : base(client, logger)
     {
         _provider = provider;
         _interactionService = interactionService;
-        _configuration = configuration;
+        _dbContext = dbContext;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -35,7 +35,9 @@ internal class InteractionHandler : DiscordClientService
         await _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _provider);
         await Client.WaitForReadyAsync(stoppingToken);
 
-        await _interactionService.RegisterCommandsToGuildAsync(_configuration.Guild);
+        var guild = _dbContext.Configurations.First().Id;
+
+        await _interactionService.RegisterCommandsToGuildAsync(guild);
     }
 
     private async Task HandleInteraction(SocketInteraction socketInteraction)

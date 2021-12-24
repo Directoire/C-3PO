@@ -1,38 +1,26 @@
 ﻿using C_3PO.Assets;
-using C_3PO.Common;
 using C_3PO.Data.Context;
 using C_3PO.Data.Models;
 using Discord;
 using Discord.Addons.Hosting;
-using Discord.Interactions;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 
 namespace C_3PO.Services
 {
     internal class OnboardingHandler : DiscordClientService
     {
-        private readonly IServiceProvider _provider;
-        private readonly InteractionService _interactionService;
-        private readonly AppConfiguration _configuration;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppDbContext _dbContext;
 
         public OnboardingHandler(
             DiscordSocketClient client,
             ILogger<DiscordClientService> logger,
-            IServiceProvider provider,
-            InteractionService interactionService,
-            AppConfiguration configuration,
             IHttpClientFactory httpClientFactory,
             AppDbContext dbContext)
             : base(client, logger)
         {
-            _provider = provider;
-            _interactionService = interactionService;
-            _configuration = configuration;
             _httpClientFactory = httpClientFactory;
             _dbContext = dbContext;
         }
@@ -41,36 +29,23 @@ namespace C_3PO.Services
         {
             Client.UserJoined += HandleUserJoined;
             Client.ButtonExecuted += HandleButtonExecuted;
-            //Client.Ready += async () =>
-            //{
-            //    if (_dbContext.Onboardings.Any(x => x.Id == 506954191273721856))
-            //    {
-            //        _dbContext.Remove(_dbContext.Onboardings
-            //            .First(x => x.Id == 506954191273721856));
-
-            //        await _dbContext.SaveChangesAsync();
-            //    }
-
-            //    var category = Client.Guilds.First().GetCategoryChannel(_configuration.OnboardingCategory);
-            //    foreach (var channel in category.Channels.Where(x => x.Id != 922105571484782612))
-            //    {
-            //        await channel.DeleteAsync();
-            //    }
-
-            //    await HandleUserJoined(Client.Guilds.First()!.GetUser(506954191273721856));
-            //};
             return Task.CompletedTask;
         }
 
         private Task HandleButtonExecuted(SocketMessageComponent component)
         {
-            if (((SocketGuildChannel)component.Channel).Guild.Id != _configuration.Guild)
-                return Task.CompletedTask;
+            var configuration = _dbContext.Configurations.First();
 
-            var guild = Client.GetGuild(_configuration.Guild);
+            // Check if the component is being executed within the configured guild.
+            if (((SocketGuildChannel)component.Channel).Guild.Id != configuration.Id)
+                throw new InvalidOperationException("This bot can only be in one guild, please remove it from the guilds that it shouldn't be in.");
 
+            var guild = Client.GetGuild(configuration.Id);
+
+            // Put the execution on a separate thread to prevent blocking.
             Task.Run(async () =>
             {
+                // Check whether the user that pressed the button is part of an onboarding procedure. If not, return.
                 if (!_dbContext.Onboardings
                     .Where(x => x.Id == component.User.Id)
                     .Any())
@@ -78,22 +53,23 @@ namespace C_3PO.Services
                     return;
                 }
 
+                // Get various values that are used in multiple parts of the switch case, such as the user as a SocketGuildUser.
                 var user = guild.GetUser(component.User.Id);
                 var userWebhook = await GetOrCreateWebhookAsync(user.Username, user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl(), (ITextChannel)component.Channel);
                 var darthVaderWebhook = await GetOrCreateWebhookAsync("Darth Vader", AppAssets.Avatars.Vader, (ITextChannel)component.Channel);
                 var trooperWebhook = await GetOrCreateWebhookAsync("Trooper", AppAssets.Avatars.Trooper, (ITextChannel)component.Channel);
                 var onboarding = _dbContext.Onboardings.First(x => x.Id == user.Id);
-                var ejectedRole = guild.GetRole(_configuration.EjectedRole);
-                var ejectedChannel = guild.GetTextChannel(_configuration.EjectedChannel);
-                var civilianRole = guild.GetRole(_configuration.CivilianRole);
+                var ejectedRole = guild.GetRole(configuration.Ejected);
+                var civilianRole = guild.GetRole(configuration.Civilian);
 
                 switch (component.Data.CustomId)
                 {
                     case "cooperate":
                         await component.DeferAsync();
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
-                        await userWebhook.SendMessageAsync("*Shows identification*");
-                        await userWebhook.SendMessageAsync("https://media.giphy.com/media/401C6bNoACPlwbaLCN/giphy.gif");
+
+                        await userWebhook.SendMessageAsync("*cooperates and shows identification*");
+                        await userWebhook.SendMessageAsync(AppAssets.GIFs.Handshake);
                         await Task.Delay(TimeSpan.FromSeconds(1));
                         await userWebhook.SendMessageAsync("I would like to board and enter the cantina.");
 
@@ -108,28 +84,28 @@ namespace C_3PO.Services
                         await component.DeferAsync();
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
 
-                        await userWebhook.SendMessageAsync("https://media.giphy.com/media/4WFgXmhbqWCowRTmdN/giphy.gif");
-                        await userWebhook.SendMessageAsync("*Starts fighting the troopers*");
-
+                        await userWebhook.SendMessageAsync("*starts fighting the troopers*");
+                        await userWebhook.SendMessageAsync(AppAssets.GIFs.Fight);
                         await Task.Delay(TimeSpan.FromSeconds(1));
-                        await trooperWebhook.SendMessageAsync("*Starts shooting at the intruder*");
+                        await trooperWebhook.SendMessageAsync("*starts fighting the intruder*");
                         await Task.Delay(TimeSpan.FromSeconds(2));
 
                         // Outcome of the fight, determined by flipism. 0 indicates a success, 1 indicates a fail.
                         int outcome = new Random().Next(0, 2);
                         if (outcome == 0)
                         {
-                            await darthVaderWebhook.SendMessageAsync("*Takes the blaster from you*");
-                            await darthVaderWebhook.SendMessageAsync("https://media.giphy.com/media/xTiIzsz8RsfugNsg6s/giphy.gif");
-                            
+                            await userWebhook.SendMessageAsync("*wins the fight*");
                             await Task.Delay(TimeSpan.FromSeconds(1));
-                            await darthVaderWebhook.SendMessageAsync("Let’s stop the quarrel, shall we? Stranger, your shooting skills seem quite good. Care to show my troopers how they can do that in the cantina?");
+
+                            await darthVaderWebhook.SendMessageAsync("*takes the blaster from you*");
+                            await darthVaderWebhook.SendMessageAsync(AppAssets.GIFs.VaderShowOff);
+                            await Task.Delay(TimeSpan.FromSeconds(1));
+                            await darthVaderWebhook.SendMessageAsync("Let’s stop the quarrel, shall we? Stranger, your shooting skills seem quite good. You may continue boarding, if you teach my troopers some of your shooting skills.");
 
                             var offerComponent = new ComponentBuilder()
                                 .WithButton("Accept", "accept_offer", ButtonStyle.Success)
                                 .WithButton("Reject", "reject_offer", ButtonStyle.Danger)
                                 .Build();
-
                             await component.Channel.SendMessageAsync("Do you accept or reject Darth Vader's offer?", components: offerComponent);
 
                             onboarding.State = OnboardingState.Offer;
@@ -137,8 +113,8 @@ namespace C_3PO.Services
                             return;
                         }
 
-                        await userWebhook.SendMessageAsync("https://media.giphy.com/media/l1KsqPhtSrgrJ9dO8/giphy.gif");
-                        await userWebhook.SendMessageAsync("*Loses the battle and gets ejected into space*");
+                        await userWebhook.SendMessageAsync(AppAssets.GIFs.ThrownInSpace);
+                        await userWebhook.SendMessageAsync("*loses the battle and gets ejected into space*");
                         
                         await user.AddRoleAsync(ejectedRole);
                         _dbContext.Remove(onboarding);
@@ -151,7 +127,7 @@ namespace C_3PO.Services
                         await component.DeferAsync();
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
 
-                        await userWebhook.SendMessageAsync("I accept the offer.");
+                        await userWebhook.SendMessageAsync("Sounds like a plan, Darth Vader.");
                         await Task.Delay(TimeSpan.FromSeconds(1));
                         await Rules();
                         break;
@@ -188,12 +164,13 @@ namespace C_3PO.Services
                         await component.Message.ModifyAsync(x => x.Components = new ComponentBuilder().Build());
                         if (component.Data.CustomId == "reject_offer")
                         {
-                            await userWebhook.SendMessageAsync("I reject the offer!");
+                            await userWebhook.SendMessageAsync("Hah, you should teach your troopers on your own!");
                             await Task.Delay(TimeSpan.FromSeconds(1));
                         }
 
-                        await darthVaderWebhook.SendMessageAsync("https://media.giphy.com/media/xTiIzKvMhb6ML9gEtG/giphy.gif");
-                        await userWebhook.SendMessageAsync("*Gets ejected into space*");
+                        await darthVaderWebhook.SendMessageAsync("Troopers, throw this stranger back into space!");
+                        await darthVaderWebhook.SendMessageAsync(AppAssets.GIFs.VaderByeBye);
+                        await userWebhook.SendMessageAsync("*gets ejected into space*");
 
                         await user.AddRoleAsync(ejectedRole);
                         _dbContext.Remove(onboarding);
@@ -205,15 +182,17 @@ namespace C_3PO.Services
                     case var customId when ulong.TryParse(customId, out var parsedId):
                         await component.DeferAsync();
 
+                        // Determine whether the parsedId is a category or notification role.
                         if (_dbContext.Categories.All(x => x.Id != parsedId) &&
                             _dbContext.NotificationRoles.All(x => x.Id != parsedId))
                             return;
 
+                        // If the parsedId is a category, assign the role of the category to the user.
                         if (_dbContext.Categories.Any(x => x.Id == parsedId))
                         {
                             var categoryRole = guild.GetRole(_dbContext.Categories.First(x => x.Id == parsedId).Role);
                             await user.AddRoleAsync(categoryRole);
-                            await userWebhook.SendMessageAsync($"*Ticks {categoryRole.Name}*");
+                            await userWebhook.SendMessageAsync($"*ticks {categoryRole.Name}*");
 
                             var leftCategoriesComponent = new ComponentBuilder()
                                 .WithButton("Continue", "continue", ButtonStyle.Success);
@@ -231,9 +210,10 @@ namespace C_3PO.Services
                             return;
                         }
 
+                        // If the parsedId is a notificationRole, assign the notification role to the user.
                         var role = guild.GetRole(parsedId);
                         await user.AddRoleAsync(role);
-                        await userWebhook.SendMessageAsync($"*Ticks {role.Name}*");
+                        await userWebhook.SendMessageAsync($"*ticks {role.Name}*");
 
                         var leftNotificationsComponent = new ComponentBuilder()
                             .WithButton("Finish", "finish", ButtonStyle.Success);
@@ -294,12 +274,14 @@ namespace C_3PO.Services
                         await component.Channel.SendMessageAsync("You’ve finished the onboarding procedure. Welcome to Efehan’s Hangout! You will now be moved to the cantina...");
                         await Task.Delay(TimeSpan.FromSeconds(2));
 
-                        var onboardingRole = guild.GetRole(_configuration.OnboardingRole);
+                        var onboardingRole = guild.GetRole(configuration.Onboarding);
                         await user.RemoveRoleAsync(onboardingRole);
                         await user.AddRoleAsync(civilianRole);
 
-                        var welcomeChannel = guild.GetTextChannel(_configuration.WelcomeChannel);
+                        var welcomeChannel = guild.GetTextChannel(configuration.Hangar);
                         await welcomeChannel.SendMessageAsync($"A new ship has just landed! Welcome {user.Mention}!");
+
+                        string? lastGif = (await welcomeChannel.GetMessagesAsync().FlattenAsync()).Last().Content;
 
                         string[] gifs = {
                             "https://media.giphy.com/media/xT1R9HVTnpLVbAZ0OI/giphy.gif",
@@ -311,7 +293,11 @@ namespace C_3PO.Services
                             "https://media.giphy.com/media/bFl5q5fN7AhC9Sz33U/giphy.gif"
                         };
 
-                        await welcomeChannel.SendMessageAsync(gifs[new Random().Next(0, gifs.Length)]);
+                        var nextGif = gifs[new Random().Next(0, gifs.Length)];
+                        if (!string.IsNullOrEmpty(lastGif))
+                            nextGif = gifs.Where(x => x != lastGif).ElementAt(new Random().Next(0, gifs.Length));
+
+                        await welcomeChannel.SendMessageAsync(gifs.Where(x => x != lastGif).ElementAt(new Random().Next(0, gifs.Length)));
 
                         _dbContext.Remove(onboarding);
                         await _dbContext.SaveChangesAsync();
@@ -328,12 +314,12 @@ namespace C_3PO.Services
             {
                 await component.Channel.TriggerTypingAsync();
                 await Task.Delay(TimeSpan.FromSeconds(2));
-                await component.Channel.SendMessageAsync("In order to head to the cantina, you first need to go through our onboarding procedure.");
+                await component.Channel.SendMessageAsync("In order to head to the cantina, you'll need to go through our onboarding procedure.");
                 await component.Channel.TriggerTypingAsync();
                 await Task.Delay(TimeSpan.FromSeconds(2));
-                await component.Channel.SendMessageAsync("First, let's go through the code of conduct.");
+                await component.Channel.SendMessageAsync("First, let's go through the rules of Efehan's Hangout.");
 
-                var rules = await guild!.GetTextChannel(_configuration.RulesChannel).GetMessageAsync(_configuration.RulesMessage);
+                var rules = (await guild!.GetTextChannel(configuration.Rules).GetMessagesAsync().FlattenAsync()).First();
 
                 var rulesEmbed = new EmbedBuilder()
                     .WithDescription(rules.Content)
@@ -361,13 +347,17 @@ namespace C_3PO.Services
 
         private async Task HandleUserJoined(SocketGuildUser user)
         {
+            // Run the execution on a separate task to prevent blocking.
             await Task.Run(async () =>
             {
-                if (user.Guild.Id != _configuration.Guild)
-                    return;
+                var configuration = _dbContext.Configurations.First();
+
+                // Check if the event was triggered within the configured guild.
+                if (user.Guild.Id != configuration.Id)
+                    throw new InvalidOperationException("This bot can only be in one guild, please remove it from the guilds that it shouldn't be in.");
 
                 // Assign the user the onboarding role, preventing them from speaking in categories until their onboarding procedure is finished.
-                var onboarding = user.Guild.GetRole(_configuration.OnboardingRole);
+                var onboarding = user.Guild.GetRole(configuration.Onboarding);
                 await user.AddRoleAsync(onboarding);
 
                 // Permission overwrites to make the channel only visible for the involved user.
@@ -380,7 +370,7 @@ namespace C_3PO.Services
                 // Create the onboarding channel under the onboarding category and assign the permission overwrites.
                 var textChannel = await user.Guild.CreateTextChannelAsync(user.Username + "-onboarding", t =>
                 {
-                    t.CategoryId = _configuration.OnboardingCategory;
+                    t.CategoryId = configuration.OuterRim;
                     t.PermissionOverwrites = permissionOverwrites;
                 });
 

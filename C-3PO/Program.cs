@@ -6,7 +6,6 @@ using Discord.Addons.Hosting;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -50,11 +49,12 @@ try
             services
             .AddHostedService<InteractionHandler>()
             .AddHostedService<OnboardingHandler>()
+            .AddHostedService<FeedsHandler>()
             .AddHttpClient()
             .AddDbContext<AppDbContext>(options =>
                 options
                     .UseMySql(
-                        context.Configuration.GetValue<string>("Database"),
+                        appConfiguration.Database,
                         new MySqlServerVersion(new Version(8, 0, 26))))
             .AddSingleton(appConfiguration);
         }).Build();
