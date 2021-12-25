@@ -7,7 +7,7 @@ using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 
-namespace C_3PO.Services
+namespace C_3PO.Handlers
 {
     internal class OnboardingHandler : DiscordClientService
     {
@@ -54,6 +54,7 @@ namespace C_3PO.Services
                 }
 
                 // Get various values that are used in multiple parts of the switch case, such as the user as a SocketGuildUser.
+
                 var user = guild.GetUser(component.User.Id);
                 var userWebhook = await GetOrCreateWebhookAsync(user.Username, user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl(), (ITextChannel)component.Channel);
                 var darthVaderWebhook = await GetOrCreateWebhookAsync("Darth Vader", AppAssets.Avatars.Vader, (ITextChannel)component.Channel);
@@ -351,6 +352,27 @@ namespace C_3PO.Services
             await Task.Run(async () =>
             {
                 var configuration = _dbContext.Configurations.First();
+
+                // Check if the user is banned and cancel the onboarding process if true.
+                if (_dbContext.Infractions
+                    .Where(x => x.Active && x.Type == InfractionType.Ban && x.User == user.Id)
+                    .Any())
+                {
+                    var ban = _dbContext.Infractions.First(x => x.Active && x.Type == InfractionType.Ban && x.User == user.Id);
+
+                    // Check if the ban has expired. If true, set the infraction to inactive and continue. If false, cancel the onboarding process.
+                    if (ban.ExpiresOn != default(DateTime) && ban.ExpiresOn <= DateTime.Now)
+                    {
+                        ban.Active = false;
+                        await _dbContext.SaveChangesAsync();
+                    }
+                    else
+                    {
+                        var ejected = Client.GetGuild(configuration.Id).GetRole(configuration.Ejected);
+                        await user.AddRoleAsync(ejected);
+                        return;
+                    }
+                }
 
                 // Check if the event was triggered within the configured guild.
                 if (user.Guild.Id != configuration.Id)

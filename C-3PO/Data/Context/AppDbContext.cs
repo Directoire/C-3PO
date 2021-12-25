@@ -14,5 +14,6 @@ namespace C_3PO.Data.Context
         public DbSet<Category> Categories { get; set; } = null!;
         public DbSet<NotificationRole> NotificationRoles { get; set; } = null!;
         public DbSet<Configuration> Configurations { get; set; } = null!;
+        public DbSet<Infraction> Infractions { get; set; } = null!;
     }
 }

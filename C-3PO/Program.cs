@@ -1,5 +1,6 @@
 ﻿using C_3PO.Common;
 using C_3PO.Data.Context;
+using C_3PO.Handlers;
 using C_3PO.Services;
 using Discord;
 using Discord.Addons.Hosting;
@@ -49,7 +50,7 @@ try
             services
             .AddHostedService<InteractionHandler>()
             .AddHostedService<OnboardingHandler>()
-            .AddHostedService<FeedsHandler>()
+            .AddHostedService<FeedsService>()
             .AddHttpClient()
             .AddDbContext<AppDbContext>(options =>
                 options

@@ -7,7 +7,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 
-namespace C_3PO.Services;
+namespace C_3PO.Handlers;
 
 internal class InteractionHandler : DiscordClientService
 {

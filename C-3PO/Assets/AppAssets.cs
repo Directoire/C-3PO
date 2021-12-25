@@ -17,6 +17,15 @@
             internal static string Handshake = "https://media.giphy.com/media/401C6bNoACPlwbaLCN/giphy.gif";
             internal static string VaderShowOff = "https://tenor.com/bpFoF.gif";
             internal static string VaderByeBye = "https://media.giphy.com/media/xTiIzKvMhb6ML9gEtG/giphy.gif";
+            internal static string QuiGonPalm = "https://media.giphy.com/media/Y2nlgS7wp2iGUdu0OG/giphy.gif";
+            internal static string TrooperSad = "https://media.giphy.com/media/xUA7bdEuWZpTTubThu/giphy.gif";
+            internal static string HanSad = "https://media.giphy.com/media/lcy1MByvFm9anVYZ9s/giphy.gif";
+        }
+
+        internal class Icons
+        {
+            public static string Check = "https://i.imgur.com/lvsMrW5.png";
+            public static string Cancel = "https://i.imgur.com/rCfPsLc.png";
         }
     }
 }

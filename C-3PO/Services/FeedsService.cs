@@ -9,12 +9,12 @@ using System.Xml;
 
 namespace C_3PO.Services
 {
-    public class FeedsHandler : DiscordClientService
+    public class FeedsService : DiscordClientService
     {
         private readonly AppDbContext _dbContext;
         private DateTime _lastRunAt = DateTime.UtcNow;
 
-        public FeedsHandler(
+        public FeedsService(
             DiscordSocketClient client,
             ILogger<DiscordClientService> logger,
             AppDbContext dbContext)
