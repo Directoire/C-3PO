@@ -49,8 +49,11 @@ try
 
             services
             .AddHostedService<InteractionHandler>()
-            .AddHostedService<OnboardingHandler>()
+            .AddHostedService<UserJoinedHandler>()
+            .AddHostedService<UserLeftHandler>()
+            .AddHostedService<ButtonExecutedHandler>()
             .AddHostedService<FeedsService>()
+            .AddSingleton<OnboardingService>()
             .AddHttpClient()
             .AddDbContext<AppDbContext>(options =>
                 options

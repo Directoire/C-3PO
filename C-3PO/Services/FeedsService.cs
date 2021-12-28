@@ -1,6 +1,6 @@
-﻿using C_3PO.Common;
-using C_3PO.Data.Context;
+﻿using C_3PO.Data.Context;
 using Discord.Addons.Hosting;
+using Discord.Addons.Hosting.Util;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -23,10 +23,10 @@ namespace C_3PO.Services
             _dbContext = dbContext;
         }
 
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            Client.Ready += WatchFeeds;
-            return Task.CompletedTask;
+            await Client.WaitForReadyAsync(stoppingToken);
+            await WatchFeeds();
         }
 
         private Task WatchFeeds()
