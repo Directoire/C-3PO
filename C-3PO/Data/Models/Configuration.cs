@@ -46,5 +46,20 @@
         /// A bool indicating whether or not the lockdown mode is enabled.
         /// </summary>
         public bool Lockdown { get; set; }
+
+        /// <summary>
+        /// The ID of the unidentified role, assigned to users during the lockdown.
+        /// </summary>
+        public ulong Unidentified { get; set; }
+
+        /// <summary>
+        /// The ID of the conduct channel, showing the rules of Efehan's Hangout.
+        /// </summary>
+        public ulong Conduct { get; set; }
+        
+        /// <summary>
+        /// The ID of the loading bay channel, allowing users to subscribe to categories and notification roles.
+        /// </summary>
+        public ulong LoadingBay { get; set; }
     }
 }

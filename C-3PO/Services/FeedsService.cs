@@ -3,6 +3,7 @@ using Discord.Addons.Hosting;
 using Discord.Addons.Hosting.Util;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.ServiceModel.Syndication;
 using System.Xml;
@@ -11,16 +12,16 @@ namespace C_3PO.Services
 {
     public class FeedsService : DiscordClientService
     {
-        private readonly AppDbContext _dbContext;
+        private readonly IServiceProvider _serviceProvider;
         private DateTime _lastRunAt = DateTime.UtcNow;
 
         public FeedsService(
             DiscordSocketClient client,
             ILogger<DiscordClientService> logger,
-            AppDbContext dbContext)
+            IServiceProvider serviceProvider)
             : base(client, logger)
         {
-            _dbContext = dbContext;
+            _serviceProvider = serviceProvider;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -35,7 +36,10 @@ namespace C_3PO.Services
             {
                 while (true)
                 {
-                    foreach (var category in _dbContext.Categories.Include(x => x.NotificationRole))
+                    using var scope = _serviceProvider.CreateScope();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    foreach (var category in dbContext.Categories.Include(x => x.NotificationRole))
                     {
                         if (category.Feed == null)
                             continue;

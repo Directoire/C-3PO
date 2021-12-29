@@ -46,21 +46,30 @@ try
         .ConfigureServices((context, services) =>
         {
             var appConfiguration = new AppConfiguration(context.Configuration);
+            var serverVersion = new MySqlServerVersion(new Version(8, 0, 26));
+            var dbContextOptionsBuilder = new DbContextOptionsBuilder<AppDbContext>()
+                .UseMySql(appConfiguration.Database, serverVersion);
+
+            using (var dbContext = new AppDbContext(dbContextOptionsBuilder.Options))
+            {
+                dbContext.Database.Migrate();
+            }
 
             services
-            .AddHostedService<InteractionHandler>()
-            .AddHostedService<UserJoinedHandler>()
-            .AddHostedService<UserLeftHandler>()
-            .AddHostedService<ButtonExecutedHandler>()
-            .AddHostedService<FeedsService>()
-            .AddSingleton<OnboardingService>()
-            .AddHttpClient()
-            .AddDbContext<AppDbContext>(options =>
-                options
-                    .UseMySql(
-                        appConfiguration.Database,
-                        new MySqlServerVersion(new Version(8, 0, 26))))
-            .AddSingleton(appConfiguration);
+                .AddHostedService<InteractionHandler>()
+                .AddHostedService<UserJoinedHandler>()
+                .AddHostedService<UserLeftHandler>()
+                .AddHostedService<ButtonExecutedHandler>()
+                .AddHostedService<FeedsService>()
+                .AddHostedService<RulesService>()
+                .AddHostedService<BansService>()
+                .AddHostedService<LoadingBayService>()
+                .AddSingleton<OnboardingService>()
+                .AddHttpClient()
+                .AddDbContext<AppDbContext>(options => 
+                    options
+                    .UseMySql(appConfiguration.Database, serverVersion))
+                .AddSingleton(appConfiguration);
         }).Build();
 
     await host.RunAsync();

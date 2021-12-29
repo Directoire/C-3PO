@@ -5,30 +5,35 @@ using C_3PO.Data.Models;
 using Discord;
 using Discord.Net;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace C_3PO.Services
 {
     public class OnboardingService
     {
-        private readonly AppDbContext _dbContext;
         private readonly DiscordSocketClient _client;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IServiceProvider _serviceProvider;
         public static IDictionary<ulong, CancellationTokenSource> StartingProcedures = new Dictionary<ulong, CancellationTokenSource>();
 
         public OnboardingService(
             AppDbContext dbContext,
             DiscordSocketClient client,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IServiceProvider serviceProvider)
         {
-            _dbContext = dbContext;
             _client = client;
             _httpClientFactory = httpClientFactory;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task StartOnboarding(SocketGuildUser user, CancellationToken cancellationToken)
         {
-            var configuration = _dbContext.Configurations.First();
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var configuration = dbContext.Configurations.First();
 
             // Check if the event was triggered within the configured guild.
             if (user.Guild.Id != configuration.Id)
@@ -85,8 +90,8 @@ namespace C_3PO.Services
                     return;
                 }
 
-                var entity = _dbContext.Add(new Onboarding { Id = user.Id, Channel = textChannel.Id, ActionMessage = actionMessage.Id });
-                await _dbContext.SaveChangesAsync();
+                var entity = dbContext.Add(new Onboarding { Id = user.Id, Channel = textChannel.Id, ActionMessage = actionMessage.Id });
+                await dbContext.SaveChangesAsync();
             }
             catch (RateLimitedException ex)
             {
@@ -106,9 +111,9 @@ namespace C_3PO.Services
             }
         }
 
-        public async Task ProcessButton(SocketMessageComponent component)
+        public async Task ProcessButton(AppDbContext dbContext, SocketMessageComponent component)
         {
-            var configuration = _dbContext.Configurations.First();
+            var configuration = dbContext.Configurations.First();
             var guild = _client.GetGuild(configuration.Id);
 
             // Get various values that are used in multiple parts of the switch case, such as the user as a SocketGuildUser.
@@ -116,7 +121,7 @@ namespace C_3PO.Services
             var userWebhook = await component.Channel.GetOrCreateWebhookAsync(user.Username, user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl(), _httpClientFactory.CreateClient());
             var darthVaderWebhook = await component.Channel.GetOrCreateWebhookAsync("Darth Vader", AppAssets.Avatars.Vader, _httpClientFactory.CreateClient());
             var trooperWebhook = await component.Channel.GetOrCreateWebhookAsync("Trooper", AppAssets.Avatars.Trooper, _httpClientFactory.CreateClient());
-            var onboarding = _dbContext.Onboardings.First(x => x.Id == user.Id);
+            var onboarding = dbContext.Onboardings.First(x => x.Id == user.Id);
             var ejectedRole = guild.GetRole(configuration.Ejected);
             var civilianRole = guild.GetRole(configuration.Civilian);
 
@@ -131,11 +136,11 @@ namespace C_3PO.Services
                     await Task.Delay(TimeSpan.FromSeconds(1));
                     await userWebhook.SendMessageAsync("I would like to board and enter the cantina.");
 
-                    _dbContext.Onboardings
+                    dbContext.Onboardings
                         .First(x => x.Id == user.Id)
                         .State = OnboardingState.Cooperate;
 
-                    await _dbContext.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
                     await SendRules();
                     break;
                 case "attack":
@@ -167,7 +172,7 @@ namespace C_3PO.Services
                         await component.Channel.SendMessageAsync("Do you accept or reject Darth Vader's offer?", components: offerComponent);
 
                         onboarding.State = OnboardingState.Offer;
-                        await _dbContext.SaveChangesAsync();
+                        await dbContext.SaveChangesAsync();
                         return;
                     }
 
@@ -175,8 +180,8 @@ namespace C_3PO.Services
                     await userWebhook.SendMessageAsync("*loses the battle and gets ejected into space*");
 
                     await user.AddRoleAsync(ejectedRole);
-                    _dbContext.Remove(onboarding);
-                    await _dbContext.SaveChangesAsync();
+                    dbContext.Remove(onboarding);
+                    await dbContext.SaveChangesAsync();
 
                     await Task.Delay(TimeSpan.FromSeconds(3));
                     await ((SocketGuildChannel)component.Channel).DeleteAsync();
@@ -198,7 +203,7 @@ namespace C_3PO.Services
                     var categoriesComponent = new ComponentBuilder()
                         .WithButton("Continue", "continue", ButtonStyle.Success);
 
-                    foreach (var category in _dbContext.Categories)
+                    foreach (var category in dbContext.Categories)
                     {
                         var name = guild.GetCategoryChannel(category.Id).Name;
                         categoriesComponent.WithButton($"Join {name}", category.Id.ToString(), ButtonStyle.Secondary);
@@ -214,7 +219,7 @@ namespace C_3PO.Services
                     onboarding.CategoriesMessage = categoriesMessage.Id;
                     onboarding.State = OnboardingState.Categories;
 
-                    await _dbContext.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
                     break;
                 case "reject_rules":
                 case "reject_offer":
@@ -231,8 +236,8 @@ namespace C_3PO.Services
                     await userWebhook.SendMessageAsync("*gets ejected into space*");
 
                     await user.AddRoleAsync(ejectedRole);
-                    _dbContext.Remove(onboarding);
-                    await _dbContext.SaveChangesAsync();
+                    dbContext.Remove(onboarding);
+                    await dbContext.SaveChangesAsync();
 
                     await Task.Delay(TimeSpan.FromSeconds(3));
                     await ((SocketGuildChannel)component.Channel).DeleteAsync();
@@ -241,21 +246,21 @@ namespace C_3PO.Services
                     await component.DeferAsync();
 
                     // Determine whether the parsedId is a category or notification role.
-                    if (_dbContext.Categories.All(x => x.Id != parsedId) &&
-                        _dbContext.NotificationRoles.All(x => x.Id != parsedId))
+                    if (dbContext.Categories.All(x => x.Id != parsedId) &&
+                        dbContext.NotificationRoles.All(x => x.Id != parsedId))
                         return;
 
                     // If the parsedId is a category, assign the role of the category to the user.
-                    if (_dbContext.Categories.Any(x => x.Id == parsedId))
+                    if (dbContext.Categories.Any(x => x.Id == parsedId))
                     {
-                        var categoryRole = guild.GetRole(_dbContext.Categories.First(x => x.Id == parsedId).Role);
+                        var categoryRole = guild.GetRole(dbContext.Categories.First(x => x.Id == parsedId).Role);
                         await user.AddRoleAsync(categoryRole);
                         await userWebhook.SendMessageAsync($"*ticks {categoryRole.Name}*");
 
                         var leftCategoriesComponent = new ComponentBuilder()
                             .WithButton("Continue", "continue", ButtonStyle.Success);
 
-                        foreach (var category in _dbContext.Categories)
+                        foreach (var category in dbContext.Categories)
                         {
                             if (user.Roles.Any(x => x.Id == category.Role) || category.Id == parsedId)
                                 continue;
@@ -276,7 +281,7 @@ namespace C_3PO.Services
                     var leftNotificationsComponent = new ComponentBuilder()
                         .WithButton("Finish", "finish", ButtonStyle.Success);
 
-                    foreach (var notificationRole in _dbContext.NotificationRoles)
+                    foreach (var notificationRole in dbContext.NotificationRoles.Include(x => x.Category))
                     {
                         if (user.Roles.Any(x => x.Id == notificationRole.Id) || notificationRole.Id == parsedId)
                             continue;
@@ -301,7 +306,7 @@ namespace C_3PO.Services
                     var notificationsComponent = new ComponentBuilder()
                         .WithButton("Finish", "finish", ButtonStyle.Success);
 
-                    foreach (var notificationRole in _dbContext.NotificationRoles)
+                    foreach (var notificationRole in dbContext.NotificationRoles.Include(x => x.Category))
                     {
                         if (notificationRole.Category != null && user.Roles.All(x => x.Id != notificationRole.Category?.Role))
                         {
@@ -322,7 +327,7 @@ namespace C_3PO.Services
                         components: notificationsComponent.Build());
 
                     onboarding.State = OnboardingState.Notifications;
-                    await _dbContext.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
                     break;
                 case "finish":
                     await component.DeferAsync();
@@ -336,11 +341,6 @@ namespace C_3PO.Services
                     await user.RemoveRoleAsync(onboardingRole);
                     await user.AddRoleAsync(civilianRole);
 
-                    var welcomeChannel = guild.GetTextChannel(configuration.Hangar);
-                    await welcomeChannel.SendMessageAsync($"A new ship has just landed! Welcome {user.Mention}!");
-
-                    string? lastGif = (await welcomeChannel.GetMessagesAsync().FlattenAsync()).Last().Content;
-
                     string[] gifs = {
                         "https://media.giphy.com/media/xT1R9HVTnpLVbAZ0OI/giphy.gif",
                         "https://media.giphy.com/media/3owzWgWD37dvdlWxqg/giphy.gif",
@@ -352,13 +352,13 @@ namespace C_3PO.Services
                     };
 
                     var nextGif = gifs[new Random().Next(0, gifs.Length)];
-                    if (!string.IsNullOrEmpty(lastGif))
-                        nextGif = gifs.Where(x => x != lastGif).ElementAt(new Random().Next(0, gifs.Length));
 
-                    await welcomeChannel.SendMessageAsync(gifs.Where(x => x != lastGif).ElementAt(new Random().Next(0, gifs.Length)));
+                    var welcomeChannel = guild.GetTextChannel(configuration.Hangar);
+                    await welcomeChannel.SendMessageAsync($"A new ship has just landed! Welcome {user.Mention}!");
+                    await welcomeChannel.SendMessageAsync(nextGif);
 
-                    _dbContext.Remove(onboarding);
-                    await _dbContext.SaveChangesAsync();
+                    dbContext.Remove(onboarding);
+                    await dbContext.SaveChangesAsync();
 
                     await ((SocketGuildChannel)component.Channel).DeleteAsync();
                     break;
@@ -379,6 +379,7 @@ namespace C_3PO.Services
 
                 var rulesEmbed = new EmbedBuilder()
                     .WithDescription(rules.Content)
+                    .WithColor(Colours.Primary)
                     .Build();
 
                 await component.Channel.TriggerTypingAsync();
@@ -393,11 +394,11 @@ namespace C_3PO.Services
                 await Task.Delay(TimeSpan.FromSeconds(1));
                 await component.Channel.SendMessageAsync("Will you follow these rules?", components: rulesComponents);
 
-                _dbContext.Onboardings
+                dbContext.Onboardings
                     .First(x => x.Id == component.User.Id)
                     .State = OnboardingState.Cooperate;
 
-                await _dbContext.SaveChangesAsync();
+                await dbContext.SaveChangesAsync();
             }
         }
     }

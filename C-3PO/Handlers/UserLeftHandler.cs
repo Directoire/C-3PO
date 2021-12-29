@@ -2,21 +2,22 @@
 using C_3PO.Services;
 using Discord.Addons.Hosting;
 using Discord.WebSocket;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace C_3PO.Handlers
 {
     public class UserLeftHandler : DiscordClientService
     {
-        private readonly AppDbContext _dbContext;
+        private readonly IServiceProvider _serviceProvider;
 
         public UserLeftHandler(
             DiscordSocketClient client,
             ILogger<DiscordClientService> logger,
-            AppDbContext dbContext)
+            IServiceProvider serviceProvider)
             : base(client, logger)
         {
-            _dbContext = dbContext;
+            _serviceProvider = serviceProvider;
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,14 +38,17 @@ namespace C_3PO.Handlers
                 }
                 else
                 {
-                    var onboarding = _dbContext.Onboardings.FirstOrDefault(x => x.Id == user.Id);
+                    using var scope = _serviceProvider.CreateScope();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    var onboarding = dbContext.Onboardings.FirstOrDefault(x => x.Id == user.Id);
 
                     // If there isn't a starting onboarding procedure, check if there is one that has been progressed. If true, delete the channel and record.
                     if (onboarding != null)
                     {
                         await guild.GetTextChannel(onboarding.Channel).DeleteAsync();
-                        _dbContext.Remove(onboarding);
-                        await _dbContext.SaveChangesAsync();
+                        dbContext.Remove(onboarding);
+                        await dbContext.SaveChangesAsync();
                     }
                 }
             });

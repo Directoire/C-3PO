@@ -3,23 +3,24 @@ using C_3PO.Data.Models;
 using C_3PO.Services;
 using Discord.Addons.Hosting;
 using Discord.WebSocket;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace C_3PO.Handlers
 {
     public class UserJoinedHandler : DiscordClientService
     {
-        private readonly AppDbContext _dbContext;
+        private readonly IServiceProvider _serviceProvider;
         private readonly OnboardingService _onboardingService;
 
         public UserJoinedHandler(
             DiscordSocketClient client,
             ILogger<DiscordClientService> logger,
-            AppDbContext dbContext,
+            IServiceProvider serviceProvider,
             OnboardingService onboardingService)
             : base(client, logger)
         {
-            _dbContext = dbContext;
+            _serviceProvider = serviceProvider;
             _onboardingService = onboardingService;
         }
 
@@ -33,10 +34,14 @@ namespace C_3PO.Handlers
         {
             Task.Run(async () =>
             {
-                var configuration = _dbContext.Configurations.First();
-                var ejected = Client.GetGuild(configuration.Id).GetRole(configuration.Ejected);
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                var ban = _dbContext.Infractions.FirstOrDefault(x => x.Active && x.Type == InfractionType.Ban && x.User == user.Id);
+                var configuration = dbContext.Configurations.First();
+                var ejected = Client.GetGuild(configuration.Id).GetRole(configuration.Ejected);
+                var unidentified = Client.GetGuild(configuration.Id).GetRole(configuration.Unidentified);
+
+                var ban = dbContext.Infractions.FirstOrDefault(x => x.Active && x.Type == InfractionType.Ban && x.User == user.Id);
 
                 // Check if the user is banned.
                 if (ban != null)
@@ -45,13 +50,20 @@ namespace C_3PO.Handlers
                     if (ban.ExpiresOn != default(DateTime) && ban.ExpiresOn <= DateTime.Now)
                     {
                         ban.Active = false;
-                        await _dbContext.SaveChangesAsync();
+                        await dbContext.SaveChangesAsync();
                     }
                     else
                     {
                         await user.AddRoleAsync(ejected);
                         return;
                     }
+                }
+
+                if (configuration.Lockdown)
+                {
+                    await user.AddRoleAsync(ejected);
+                    await user.AddRoleAsync(unidentified);
+                    return;
                 }
 
                 if (OnboardingService.StartingProcedures.Any(x => x.Key == user.Id))

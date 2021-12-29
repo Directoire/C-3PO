@@ -3,6 +3,7 @@ using System;
 using C_3PO.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace C_3PO.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20211228181240_AddedUnidentified")]
+    partial class AddedUnidentified
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -48,16 +50,10 @@ namespace C_3PO.Data.Migrations
                     b.Property<ulong>("Civilian")
                         .HasColumnType("bigint unsigned");
 
-                    b.Property<ulong>("Conduct")
-                        .HasColumnType("bigint unsigned");
-
                     b.Property<ulong>("Ejected")
                         .HasColumnType("bigint unsigned");
 
                     b.Property<ulong>("Hangar")
-                        .HasColumnType("bigint unsigned");
-
-                    b.Property<ulong>("LoadingBay")
                         .HasColumnType("bigint unsigned");
 
                     b.Property<bool>("Lockdown")

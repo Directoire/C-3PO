@@ -36,7 +36,6 @@ internal class InteractionHandler : DiscordClientService
         await Client.WaitForReadyAsync(stoppingToken);
 
         var guild = _dbContext.Configurations.First().Id;
-
         await _interactionService.RegisterCommandsToGuildAsync(guild);
     }
 
