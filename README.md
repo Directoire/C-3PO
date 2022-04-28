@@ -72,6 +72,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 * [Discord.NET](https://github.com/discord-net/Discord.Net)
 * [Discord.Addons.Hosting](https://github.com/Hawxy/Discord.Addons.Hosting)
+* [.NET](https://dotnet.microsoft.com)
 
 
 [forks-shield]: https://img.shields.io/github/forks/Directoire/C-3PO.svg?style=flat
