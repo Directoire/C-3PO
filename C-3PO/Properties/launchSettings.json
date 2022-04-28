@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "C-3PO": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}
