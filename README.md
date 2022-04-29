@@ -43,6 +43,8 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
+![C-3PO Onboarding Showcase](product-screenshot])
+
 Hello there! This is a Discord bot I originally wrote for a Discord community I managed. This bot has simple moderation features and has an interactive onboarding process, which gives new members a unique and fun entrance to a server.
 
 
@@ -83,3 +85,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [license-url]: https://github.com/Directoire/C-3PO/blob/master/LICENSE
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/hendrik-demir
+[product-screenshot]: assets/showcase.gif
