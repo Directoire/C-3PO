@@ -32,6 +32,9 @@
     </li>
     <li>
       <a href="#getting-started">Getting Started</a>
+            <ul>
+              <li><a href="#configuration">Configuration</a></li>
+    </ul>
     </li>
     <li><a href="#license">License</a></li>
     <li><a href="#acknowledgments">Acknowledgments</a></li>
@@ -55,7 +58,6 @@ Hello there! This is a Discord bot I originally wrote for a Discord community I 
 <!-- GETTING STARTED -->
 ## Getting Started
 
-
 1. Clone the repo
    ```sh
    git clone https://github.com/Directoire/C-3PO.git
@@ -66,6 +68,25 @@ Hello there! This is a Discord bot I originally wrote for a Discord community I 
     dotnet run --project .\C-3PO\C-3PO.csproj --configuration <debug|release>
     ```
 
+### Configuration
+
+| Key          | Type   | Description                                                                                                                                                                         |
+|--------------|--------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Database     | string | The connection string of your MySQL database.                                                                                                                                       |
+| Token        | string | The token of your Discord bot.                                                                                                                                                      |
+| Guild        | ulong  | The ID of the Discord server which C-3PO will run in.                                                                                                                               |
+| Hangar       | ulong  | The ID of the Discord channel where new members will be announced.                                                                                                                  |
+| Rules        | ulong  | The ID of the Discord channel where the rules are located.                                                                                                                          |
+| Logs         | ulong  | The ID of the Discord channel where the logs should be send to.                                                                                                                     |
+| Conduct      | ulong  | The ID of the Discord channel where the rules should be send to.                                                                                                                    |
+| LoadingBay   | ulong  | The ID of the Discord channel where members can subscribe to categories and their respective notification roles.                                                                    |
+| Support      | ulong  | The ID of the Discord channel where a thread is automatically created for programming questions.                                                                                    |
+| OuterRim     | ulong  | The ID of the Discord category where a channel will be created for the onboarding process of a new member.                                                                          |
+| Onboarding   | ulong  | The ID of the Discord role that is assigned to members that are in the onboarding stage.                                                                                            |
+| Ejected      | ulong  | The ID of the Discord role that is assigned to members that are kicked, banned or failed the onboarding process.                                                                    |
+| Civilian     | ulong  | The ID of the Discord role that is assigned to members that have passed the onboarding process.                                                                                     |
+| Unidentified | ulong  | The ID of the Discord role that is assigned to members that join during a lockdown. Once the lockdown is over, these members will automatically be put into the onboarding process. |
+| HeartbeatUrl | string | A heartbeat URL that can be used for monitoring purposes.                                                                                                                           |
 
 <!-- LICENSE -->
 ## License
